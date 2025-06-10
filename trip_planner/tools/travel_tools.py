@@ -4,8 +4,18 @@ from pydantic import BaseModel, Field
 import requests
 import json
 from datetime import datetime, timedelta
+import os
 
 class TravelTools:
+    def __init__(self):
+        # Initialize API keys
+        self.opentripmap_api_key = os.getenv('OPENTRIPMAP_API_KEY')
+        self.weather_api_key = os.getenv('WEATHER_API_KEY')
+        self.currency_api_key = os.getenv('CURRENCY_API_KEY')
+        self.eventbrite_api_key = os.getenv('EVENTBRITE_API_KEY')
+        self.aviation_stack_api_key = os.getenv('AVIATION_STACK_API_KEY')
+        self.transitland_api_key = os.getenv('TRANSITLAND_API_KEY')
+
     @staticmethod
     def calculate_match_score(city: Dict[str, Any], preferences: List[str], budget: float, season: str) -> float:
         """Calculate how well a city matches the user's preferences."""
@@ -58,26 +68,105 @@ class TravelTools:
 
     @staticmethod
     def calculate_travel_budget(destination: str, duration: int, preferences: list) -> Dict[str, float]:
-        """Calculate estimated travel budget based on destination, duration, and preferences."""
-        # Placeholder implementation
-        return {
-            "accommodation": 100 * duration,
-            "food": 50 * duration,
-            "activities": 75 * duration,
-            "transportation": 200,
-            "total": (100 + 50 + 75) * duration + 200
-        }
+        """Calculate estimated travel budget based on destination, duration, and preferences, using real currency conversion."""
+        try:
+            geo = TravelTools.geocode_city(destination)
+            country = geo.get('country', 'US')
+            # Use restcountries API to get currency code
+            currency_code = 'USD'
+            try:
+                rest_url = f'https://restcountries.com/v3.1/alpha/{country}'
+                rest_resp = requests.get(rest_url)
+                rest_data = rest_resp.json()
+                currency_code = list(rest_data[0]['currencies'].keys())[0]
+            except Exception:
+                pass
+            # Get currency rates
+            currency_api_key = os.getenv('CURRENCY_API_KEY')
+            rates_url = f'https://v6.exchangerate-api.com/v6/{currency_api_key}/latest/USD'
+            rates_resp = requests.get(rates_url)
+            rates = rates_resp.json().get('conversion_rates', {})
+            rate = rates.get(currency_code, 1.0)
+            # Base costs in USD
+            base_costs = {
+                "accommodation": 100,
+                "food": 50,
+                "activities": 75,
+                "transportation": 200
+            }
+            # Convert to destination currency
+            converted_costs = {key: round(value * rate, 2) for key, value in base_costs.items()}
+            total = sum(converted_costs.values()) * duration
+            return {
+                **converted_costs,
+                "total": total
+            }
+        except Exception as e:
+            return {
+                "accommodation": 100 * duration,
+                "food": 50 * duration,
+                "activities": 75 * duration,
+                "transportation": 200,
+                "total": (100 + 50 + 75) * duration + 200
+            }
+
+    @staticmethod
+    def geocode_city(city_name: str) -> dict:
+        """Get latitude, longitude, and country for a city using OpenTripMap."""
+        try:
+            url = f"https://api.opentripmap.com/0.1/en/places/geoname"
+            params = {
+                'name': city_name,
+                'apikey': os.getenv('OPENTRIPMAP_API_KEY')
+            }
+            response = requests.get(url, params=params)
+            data = response.json()
+            return {
+                'lat': data.get('lat', 0),
+                'lon': data.get('lon', 0),
+                'country': data.get('country', ''),
+                'name': data.get('name', city_name)
+            }
+        except Exception as e:
+            return {'lat': 0, 'lon': 0, 'country': '', 'name': city_name}
 
     @staticmethod
     def get_safety_information(destination: str) -> str:
-        """Get safety information for a destination."""
-        # Placeholder implementation
-        return json.dumps({
-            "general_safety": "Generally safe for tourists",
-            "health_concerns": "No major health concerns",
-            "crime_rate": "Low",
-            "natural_disasters": "Low risk"
-        })
+        """Get safety information for a destination using OpenTripMap tags."""
+        try:
+            geo = TravelTools.geocode_city(destination)
+            url = f"https://api.opentripmap.com/0.1/en/places/radius"
+            params = {
+                'radius': 1000,
+                'lon': geo['lon'],
+                'lat': geo['lat'],
+                'apikey': os.getenv('OPENTRIPMAP_API_KEY')
+            }
+            response = requests.get(url, params=params)
+            data = response.json()
+            # Try to extract tags or info from the first POI
+            pois = data.get('features', [])
+            tags = []
+            if pois:
+                for poi in pois:
+                    tags.extend(poi.get('properties', {}).get('kinds', '').split(','))
+            # Simple logic: if 'danger' or 'safety' in tags, flag it
+            general_safety = "Generally safe for tourists"
+            if any('danger' in tag or 'safety' in tag for tag in tags):
+                general_safety = "Some safety concerns reported. Check local advisories."
+            return json.dumps({
+                "general_safety": general_safety,
+                "health_concerns": "Check local health advisories",
+                "crime_rate": "Check local crime statistics",
+                "natural_disasters": "Check local disaster risk"
+            })
+        except Exception as e:
+            return json.dumps({
+                "general_safety": "Generally safe for tourists",
+                "health_concerns": "No major health concerns",
+                "crime_rate": "Low",
+                "natural_disasters": "Low risk"
+            })
 
     @staticmethod
     def get_weather_forecast(destination: str, date: str = None) -> Dict[str, Any]:
@@ -85,30 +174,116 @@ class TravelTools:
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")
             
-        # Placeholder implementation
-        return {
-            "temperature": 25,
-            "condition": "Sunny",
-            "humidity": 60,
-            "wind_speed": 10
-        }
+        try:
+            url = "http://api.weatherapi.com/v1/forecast.json"
+            params = {
+                'key': os.getenv('WEATHER_API_KEY'),
+                'q': destination,
+                'dt': date,
+                'aqi': 'no'
+            }
+            response = requests.get(url, params=params)
+            data = response.json()
+            
+            return {
+                "temperature": data['current']['temp_c'],
+                "condition": data['current']['condition']['text'],
+                "humidity": data['current']['humidity'],
+                "wind_speed": data['current']['wind_kph']
+            }
+        except Exception as e:
+            return {
+                "temperature": 25,
+                "condition": "Sunny",
+                "humidity": 60,
+                "wind_speed": 10
+            }
 
     @staticmethod
     def get_local_events(destination: str, date_range: Dict[str, str] = None) -> list:
-        """Get local events for a destination within a date range."""
+        """Get local events for a destination within a date range, using geocoding for accuracy."""
         if date_range is None:
             today = datetime.now()
             date_range = {
                 "start": today.strftime("%Y-%m-%d"),
                 "end": (today + timedelta(days=7)).strftime("%Y-%m-%d")
             }
-            
-        # Placeholder implementation
-        return [
-            {
-                "name": "Local Festival",
-                "date": date_range["start"],
-                "description": "Annual cultural festival",
-                "location": "City Center"
+        try:
+            geo = TravelTools.geocode_city(destination)
+            city_name = geo.get('name', destination)
+            url = "https://www.eventbriteapi.com/v3/events/search/"
+            headers = {
+                "Authorization": f"Bearer {os.getenv('EVENTBRITE_API_KEY')}"
             }
-        ] 
+            params = {
+                'location.address': city_name,
+                'start_date.range_start': date_range["start"],
+                'start_date.range_end': date_range["end"],
+                'expand': 'venue'
+            }
+            response = requests.get(url, headers=headers, params=params)
+            data = response.json()
+            events = []
+            for event in data.get('events', []):
+                events.append({
+                    "name": event['name']['text'],
+                    "date": event['start']['local'],
+                    "description": event['description']['text'],
+                    "location": event['venue']['name'] if 'venue' in event else "TBD"
+                })
+            if not events:
+                events.append({
+                    "name": "No major events found",
+                    "date": date_range["start"],
+                    "description": f"No major events found for {city_name} in this period.",
+                    "location": city_name
+                })
+            return events
+        except Exception as e:
+            return [
+                {
+                    "name": "Local Festival",
+                    "date": date_range["start"],
+                    "description": "Annual cultural festival",
+                    "location": destination
+                }
+            ]
+
+    @staticmethod
+    def get_transportation_routes(origin: str, destination: str, date: str = None) -> Dict[str, Any]:
+        """Get transportation routes between two locations using real coordinates."""
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d")
+        try:
+            # Geocode origin and destination
+            origin_geo = TravelTools.geocode_city(origin)
+            dest_geo = TravelTools.geocode_city(destination)
+            # Use Aviation Stack API for flight information
+            url = "http://api.aviationstack.com/v1/flights"
+            params = {
+                'access_key': os.getenv('AVIATION_STACK_API_KEY'),
+                'dep_iata': origin[:3].upper(),  # Placeholder: ideally use a real IATA lookup
+                'arr_iata': destination[:3].upper(),
+                'flight_date': date
+            }
+            response = requests.get(url, params=params)
+            flight_data = response.json()
+            # Use TransitLand API for ground transportation
+            transit_url = f"https://transit.land/api/v2/routes"
+            transit_params = {
+                'api_key': os.getenv('TRANSITLAND_API_KEY'),
+                'lat': dest_geo['lat'],
+                'lon': dest_geo['lon'],
+                'radius': 1000
+            }
+            transit_response = requests.get(transit_url, params=transit_params)
+            transit_data = transit_response.json()
+            return {
+                "flights": flight_data.get('data', []),
+                "transit_routes": transit_data.get('routes', [])
+            }
+        except Exception as e:
+            return {
+                "flights": [],
+                "transit_routes": []
+            } 

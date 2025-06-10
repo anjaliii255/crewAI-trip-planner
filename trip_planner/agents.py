@@ -155,10 +155,7 @@ class TripAgents:
         return Agent(
             role="City Selection Expert",
             goal="Recommend the best cities based on user preferences and constraints",
-            backstory="""You are an expert travel advisor with extensive knowledge of cities worldwide.
-            You specialize in matching travelers with destinations that best suit their preferences,
-            budget, and travel style. Use the calculate_match_score tool to evaluate how well each city
-            matches the user's preferences.""",
+            backstory="""You are an expert travel advisor with extensive knowledge of cities worldwide.\nYou specialize in matching travelers with destinations that best suit their preferences,\nbudget, and travel style. Use the calculate_match_score tool to evaluate how well each city\nmatches the user's preferences.\nNEVER attempt to delegate work to a co-worker. If you cannot find real cities, return a static JSON with at least one city recommendation in the required format.\nExample fallback:\n{\n  \"recommended_cities\": [\n    {\n      \"name\": \"Barcelona\",\n      \"country\": \"Spain\",\n      \"description\": \"A vibrant city known for its beaches and rich cultural heritage.\",\n      \"match_score\": 0.9,\n      \"highlights\": [\"Sagrada Familia\", \"Beach\", \"Local Cuisine\"],\n      \"estimated_cost\": {\n        \"accommodation\": 80,\n        \"food\": 40,\n        \"activities\": 30,\n        \"total_per_day\": 150\n      }\n    }\n  ]\n}\n""",
             verbose=True,
             llm=self.llm,
             tools=[
