@@ -5,6 +5,5 @@ python-dotenv
 plotly
 openai
 langchain
-crewai
 beautifulsoup4
 pydantic
