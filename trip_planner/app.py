@@ -7,9 +7,9 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from langchain_openai import ChatOpenAI
-from trip_planner.agents import TripAgents, TravelInput, CityInput
-from trip_planner.guardrails import GuardrailManager
-from trip_planner.tools import TravelTools
+from .agents import TripAgents, TravelInput, CityInput
+from .guardrails import GuardrailManager
+from .tools import TravelTools
 
 # Set page config
 st.set_page_config(
