@@ -5,7 +5,7 @@ python-dotenv
 plotly
 openai
 langchain
-crewai
+crewai==0.10.15
 beautifulsoup4
 pydantic
 langchain-openai
