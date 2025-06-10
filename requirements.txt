@@ -1,10 +1,11 @@
+-e .
 streamlit
-pandas
-requests
-python-dotenv
-plotly
-openai
 langchain
+langchain-openai
+openai
+python-dotenv
+pandas
+plotly
 beautifulsoup4
 pydantic
-langchain-openai
+requests
