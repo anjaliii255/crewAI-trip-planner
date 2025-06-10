@@ -10,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from .agents import TripAgents, TravelInput, CityInput
 from .guardrails import GuardrailManager
 from .tools import TravelTools
+from crewai import Task, Crew
 
 # Set page config
 st.set_page_config(
@@ -327,8 +328,15 @@ def city_selection_form():
             # Get city recommendations
             with st.spinner("Getting city recommendations..."):
                 city_expert = agents.city_selection_expert()
-                task = f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.\nReturn at least 5 cities in the response.\nYour response MUST be a valid JSON object with the following structure:\n{{\n    \"recommended_cities\": [\n        {{\n            \"name\": \"City Name\",\n            \"country\": \"Country Name\",\n            \"description\": \"Brief description of the city\",\n            \"match_score\": 0.95,\n            \"highlights\": [\"Highlight 1\", \"Highlight 2\"],\n            \"estimated_cost\": {{\n                \"accommodation\": 100,\n                \"food\": 50,\n                \"activities\": 75,\n                \"total_per_day\": 225\n            }}\n        }}\n    ]\n}}"""
-                result = llm.invoke(task, city_expert)
+                task = Task(
+                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.\nReturn at least 5 cities in the response.\nYour response MUST be a valid JSON object with the following structure:\n{{\n    \"recommended_cities\": [\n        {{\n            \"name\": \"City Name\",\n            \"country\": \"Country Name\",\n            \"description\": \"Brief description of the city\",\n            \"match_score\": 0.95,\n            \"highlights\": [\"Highlight 1\", \"Highlight 2\"],\n            \"estimated_cost\": {{\n                \"accommodation\": 100,\n                \"food\": 50,\n                \"activities\": 75,\n                \"total_per_day\": 225\n            }}\n        }}\n    ]\n}}""",
+                    agent=city_expert
+                )
+                crew = Crew(
+                    agents=[city_expert],
+                    tasks=[task]
+                )
+                result = crew.kickoff()
                 
                 # Debug logging
                 st.write("Raw result:", result)
@@ -480,46 +488,53 @@ def travel_planning_form():
             # Generate travel plan
             with st.spinner("Generating your travel plan..."):
                 travel_expert = agents.travel_planning_expert()
-                task = f"""Create a detailed travel plan based on these preferences: {travel_input.dict()}
-                Your response MUST be a valid JSON object with the following structure:
-                {{
-                    "itinerary": [
-                        {{
-                            "day": 1,
-                            "date": "YYYY-MM-DD",
-                            "activities": [
-                                {{
-                                    "time": "09:00",
-                                    "activity": "Activity name",
-                                    "description": "Activity description",
-                                    "location": "Location name",
-                                    "duration": "2 hours",
-                                    "cost": 50
-                                }}
-                            ],
-                            "meals": [
-                                {{
-                                    "time": "12:00",
-                                    "type": "Lunch",
-                                    "suggestion": "Restaurant name",
-                                    "cost": 30
-                                }}
-                            ]
-                        }}
-                    ],
-                    "budget_breakdown": {{
-                        "accommodation": 500,
-                        "food": 300,
-                        "activities": 400,
-                        "transportation": 200,
-                        "total": 1400
-                    }},
-                    "recommendations": [
-                        "Recommendation 1",
-                        "Recommendation 2"
-                    ]
-                }}"""
-                result = llm.invoke(task, travel_expert)
+                task = Task(
+                    description=f"""Create a detailed travel plan based on these preferences: {travel_input.dict()}
+                    Your response MUST be a valid JSON object with the following structure:
+                    {{
+                        "itinerary": [
+                            {{
+                                "day": 1,
+                                "date": "YYYY-MM-DD",
+                                "activities": [
+                                    {{
+                                        "time": "09:00",
+                                        "activity": "Activity name",
+                                        "description": "Activity description",
+                                        "location": "Location name",
+                                        "duration": "2 hours",
+                                        "cost": 50
+                                    }}
+                                ],
+                                "meals": [
+                                    {{
+                                        "time": "12:00",
+                                        "type": "Lunch",
+                                        "suggestion": "Restaurant name",
+                                        "cost": 30
+                                    }}
+                                ]
+                            }}
+                        ],
+                        "budget_breakdown": {{
+                            "accommodation": 500,
+                            "food": 300,
+                            "activities": 400,
+                            "transportation": 200,
+                            "total": 1400
+                        }},
+                        "recommendations": [
+                            "Recommendation 1",
+                            "Recommendation 2"
+                        ]
+                    }}""",
+                    agent=travel_expert
+                )
+                crew = Crew(
+                    agents=[travel_expert],
+                    tasks=[task]
+                )
+                result = crew.kickoff()
                 
                 # Validate output using guardrails
                 try:
