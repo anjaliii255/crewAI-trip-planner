@@ -1,3 +1,4 @@
+from crewai import Agent
 from textwrap import dedent
 from langchain_openai import ChatOpenAI
 import os
