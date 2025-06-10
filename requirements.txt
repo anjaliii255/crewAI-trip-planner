@@ -10,3 +10,4 @@ beautifulsoup4
 pydantic
 requests
 crewai
+tiktoken==0.5.2
