@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from langchain_openai import ChatOpenAI
 from crewai import Crew, Task
 from trip_planner.agents import TripAgents, TravelInput, CityInput
@@ -72,24 +74,24 @@ def display_weather_forecast(destination: str, date: str):
     """Display weather forecast for a destination"""
     with st.spinner("Getting weather forecast..."):
         weather = TravelTools.get_weather_forecast(destination, date)
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
         col1.metric("Temperature", f"{weather['temperature']}°C")
-        col2.metric("Condition", weather['condition'])
+        # Use markdown for condition to avoid truncation
+        col2.markdown(f"<span style='font-size:1.5em'>{weather['condition']}</span>", unsafe_allow_html=True)
         col3.metric("Humidity", f"{weather['humidity']}%")
         col4.metric("Wind Speed", f"{weather['wind_speed']} km/h")
+    st.markdown("<br>", unsafe_allow_html=True)
 
 def display_safety_info(destination: str):
     """Display safety information for a destination"""
     with st.spinner("Getting safety information..."):
         safety_info = json.loads(TravelTools.get_safety_information(destination))
         st.subheader("Safety Information")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info(f"General Safety: {safety_info['general_safety']}")
-            st.info(f"Health Concerns: {safety_info['health_concerns']}")
-        with col2:
-            st.info(f"Crime Rate: {safety_info['crime_rate']}")
-            st.info(f"Natural Disasters: {safety_info['natural_disasters']}")
+        st.info(f"General Safety: {safety_info['general_safety']}")
+        st.info(f"Health Concerns: {safety_info['health_concerns']}")
+        st.info(f"Crime Rate: {safety_info['crime_rate']}")
+        st.info(f"Natural Disasters: {safety_info['natural_disasters']}")
+    st.markdown("<br>", unsafe_allow_html=True)
 
 def display_local_events(destination: str, date_range: dict):
     """Display local events for a destination"""
@@ -122,64 +124,73 @@ def display_budget_analysis(budget_breakdown: dict):
     col5.metric("Total", f"${budget_breakdown['total']}")
 
 def display_city_comparison(cities: list):
-    """Display comparison of recommended cities"""
+    """Display comparison of recommended cities only if 3 or more cities are present."""
+    if len(cities) < 3:
+        return  # Skip plots for 1-2 cities
     st.subheader("City Comparison")
-    
-    # Create comparison metrics
     metrics = {
         "Match Score": [city["match_score"] for city in cities],
         "Daily Cost": [city["estimated_cost"]["total_per_day"] for city in cities],
         "City": [city["name"] for city in cities]
     }
-    
-    # Create bar chart for match scores
     fig = px.bar(
-        x=metrics["City"],
-        y=metrics["Match Score"],
+        x="City",
+        y="Match Score",
+        data_frame=pd.DataFrame(metrics),
         title="City Match Scores"
     )
     st.plotly_chart(fig)
-    
-    # Create bar chart for daily costs
     fig = px.bar(
-        x=metrics["City"],
-        y=metrics["Daily Cost"],
+        x="City",
+        y="Daily Cost",
+        data_frame=pd.DataFrame(metrics),
         title="Daily Costs Comparison"
     )
     st.plotly_chart(fig)
 
 def display_city_recommendations(cities):
-    """Display city recommendations in a visually appealing way"""
+    """Display city recommendations as summary cards for all cities."""
     st.subheader("Recommended Cities")
-    
-    # Add city comparison
     display_city_comparison(cities)
-    
+    # Show all cities as cards in a grid
+    cols = st.columns(min(3, len(cities)))
+    for idx, city in enumerate(cities):
+        with cols[idx % len(cols)]:
+            st.markdown(f"### 🌆 {city['name']}, {city['country']} (Score: {city['match_score']:.2f})")
+            st.markdown(f"**Description:** {city['description']}")
+            st.markdown(f"**Estimated Daily Cost:** ${city['estimated_cost']['total_per_day']}")
+            st.markdown(f"**Highlights:** {' | '.join(city['highlights'])}")
+            # Weather summary
+            weather = TravelTools.get_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
+            st.markdown(f"**Weather:** {weather['temperature']}°C, {weather['condition']}")
+            # Events summary
+            events = TravelTools.get_local_events(city['name'])
+            if events:
+                st.markdown(f"**Events:** {events[0]['name']} ({events[0]['date'][:10]})")
+            # Safety summary
+            st.markdown("[Travel Advisory](https://www.travel-advisory.info/) for safety info.")
+            st.markdown("---")
+    # Optionally, expand for details
     for city in cities:
-        with st.expander(f"🌆 {city['name']}, {city['country']} (Match Score: {city['match_score']:.2f})"):
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                st.markdown(f"**Description:** {city['description']}")
-                st.markdown("**Highlights:**")
-                for highlight in city['highlights']:
-                    st.markdown(f"- {highlight}")
-                
-                # Add weather forecast
-                st.markdown("**Weather Forecast:**")
-                display_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
-                
-                # Add safety information
-                display_safety_info(city['name'])
-            
-            with col2:
-                st.markdown("**Estimated Daily Costs:**")
-                costs = city['estimated_cost']
-                st.metric("Accommodation", f"${costs['accommodation']}")
-                st.metric("Food", f"${costs['food']}")
-                st.metric("Activities", f"${costs['activities']}")
-                st.metric("Total per day", f"${costs['total_per_day']}", 
-                         delta=f"${costs['total_per_day'] - 200:.2f} vs budget")
+        with st.expander(f"More about {city['name']}"):
+            st.markdown(f"**Description:** {city['description']}")
+            st.markdown("**Highlights:**")
+            for highlight in city['highlights']:
+                st.markdown(f"- :star: {highlight}")
+            st.markdown("**Weather Forecast:**")
+            display_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
+            display_safety_info(city['name'])
+            st.markdown("**Events:**")
+            for event in TravelTools.get_local_events(city['name']):
+                st.markdown(f"- {event['name']} ({event['date'][:10]})")
+            st.markdown("**Estimated Daily Costs:**")
+            costs = city['estimated_cost']
+            st.metric("Accommodation", f"${costs['accommodation']}")
+            st.metric("Food", f"${costs['food']}")
+            st.metric("Activities", f"${costs['activities']}")
+            st.metric("Total per day", f"${costs['total_per_day']}", 
+                     delta=f"${costs['total_per_day'] - 200:.2f} vs budget")
+            st.markdown("<br>", unsafe_allow_html=True)
 
 def display_travel_plan(plan):
     """Display travel plan in a visually appealing way"""
@@ -318,25 +329,7 @@ def city_selection_form():
             with st.spinner("Getting city recommendations..."):
                 city_expert = agents.city_selection_expert()
                 task = Task(
-                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.
-                    Your response MUST be a valid JSON object with the following structure:
-                    {{
-                        "recommended_cities": [
-                            {{
-                                "name": "City Name",
-                                "country": "Country Name",
-                                "description": "Brief description of the city",
-                                "match_score": 0.95,
-                                "highlights": ["Highlight 1", "Highlight 2"],
-                                "estimated_cost": {{
-                                    "accommodation": 100,
-                                    "food": 50,
-                                    "activities": 75,
-                                    "total_per_day": 225
-                                }}
-                            }}
-                        ]
-                    }}""",
+                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.\nReturn at least 5 cities in the response.\nYour response MUST be a valid JSON object with the following structure:\n{{\n    \"recommended_cities\": [\n        {{\n            \"name\": \"City Name\",\n            \"country\": \"Country Name\",\n            \"description\": \"Brief description of the city\",\n            \"match_score\": 0.95,\n            \"highlights\": [\"Highlight 1\", \"Highlight 2\"],\n            \"estimated_cost\": {{\n                \"accommodation\": 100,\n                \"food\": 50,\n                \"activities\": 75,\n                \"total_per_day\": 225\n            }}\n        }}\n    ]\n}}""",
                     agent=city_expert
                 )
                 crew = Crew(
@@ -406,8 +399,28 @@ def city_selection_form():
                         st.write("Debug - Cities data:", result_data['recommended_cities'])
                 
                 except json.JSONDecodeError as e:
-                    st.error(f"Invalid JSON response from the AI: {str(e)}")
+                    st.error("Invalid JSON response from the AI. Please try again.")
                     st.write("Raw result that failed to parse:", result)
+                    # Provide a fallback response
+                    fallback_response = {
+                        "recommended_cities": [
+                            {
+                                "name": "Barcelona",
+                                "country": "Spain",
+                                "description": "A vibrant city known for its beaches and rich cultural heritage.",
+                                "match_score": 0.9,
+                                "highlights": ["Sagrada Familia", "Beach", "Local Cuisine"],
+                                "estimated_cost": {
+                                    "accommodation": 80,
+                                    "food": 40,
+                                    "activities": 30,
+                                    "total_per_day": 150
+                                }
+                            }
+                        ]
+                    }
+                    st.session_state.selected_cities = fallback_response
+                    display_city_recommendations(fallback_response['recommended_cities'])
                 except Exception as e:
                     st.error(f"Unexpected error: {str(e)}")
                     st.write("Debug - Full error:", e)
