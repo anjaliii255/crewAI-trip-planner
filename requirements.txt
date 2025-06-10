@@ -8,3 +8,4 @@ langchain
 crewai
 beautifulsoup4
 pydantic
+langchain-openai
