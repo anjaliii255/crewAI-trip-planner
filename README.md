@@ -1,11 +1,11 @@
 # crewAI-trip-planner
 
-A smart, agent-based trip planner leveraging AI and Llama models for generating and managing travel itineraries. Built with Python and Jupyter Notebook, this project aims to automate and optimize trip planning with advanced reasoning and retrieval capabilities.
+A smart, agent-based trip planner leveraging AI and OpenAI's GPT-4 for generating and managing travel itineraries. Built with Python and Jupyter Notebook, this project aims to automate and optimize trip planning with advanced reasoning and retrieval capabilities.
 
 ## Features
 
 - **Agent-based planning:** Modular agents coordinate to create and refine trip plans.
-- **Integration with Llama3:** Utilizes Llama3 models for reasoning and retrieval-augmented generation (RAG).
+- **Integration with OpenAI:** Utilizes GPT-4 for reasoning and retrieval-augmented generation (RAG).
 - **Jupyter Notebook demos:** Interactive exploration and rapid prototyping.
 - **Extensible tooling:** Easily add custom tasks and agents.
 
@@ -24,11 +24,11 @@ A smart, agent-based trip planner leveraging AI and Llama models for generating 
      ```
    - Or manually (see `pyproject.toml` for dependencies).
 
-3. **(Optional) Set up Llama3 model:**
-   - Refer to `Llama3Modelfile.txt` for details.
-   - You may need to run the setup script:
+3. **Set up OpenAI API key:**
+   - The API key is already configured in the code
+   - Alternatively, you can set it as an environment variable:
      ```sh
-     ./llama3crew.sh
+     export OPENAI_API_KEY="your-api-key"
      ```
 
 ## Usage
@@ -50,15 +50,13 @@ A smart, agent-based trip planner leveraging AI and Llama models for generating 
 - `agents.py` — Definitions of agent logic and orchestration.
 - `tasks.py` — Task definitions and workflows.
 - `tools/` — Additional utilities and tools for agents.
-- `Llama3Modelfile.txt` — Model configuration/instructions.
-- `llama3crew.sh` — Shell script for environment/model setup.
 - `pyproject.toml` / `poetry.lock` — Dependency management.
 
 ## Requirements
 
 - Python 3.8+
 - Poetry (recommended) or pip
-- Compatible hardware for running Llama3 models (see model file for details)
+- OpenAI API key
 
 ## Contributing
 
