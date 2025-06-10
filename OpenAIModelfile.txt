@@ -1,0 +1,44 @@
+# OpenAI Model Configuration
+
+## Model Settings
+- Model: gpt-4-turbo-preview
+- Temperature: 0.7
+- Max Tokens: 4096
+- Top P: 1.0
+- Frequency Penalty: 0.0
+- Presence Penalty: 0.0
+
+## Model Capabilities
+- Advanced reasoning and planning
+- Natural language understanding
+- Context-aware responses
+- Code generation and analysis
+- Multi-step problem solving
+
+## Usage Guidelines
+1. The model is configured for optimal travel planning with:
+   - Balanced creativity and precision (temperature: 0.7)
+   - Sufficient context window for detailed itineraries
+   - Consistent output formatting
+
+2. Best Practices:
+   - Provide clear, specific prompts
+   - Include relevant context in the conversation
+   - Use system messages to set behavior
+   - Break complex tasks into smaller steps
+
+3. Limitations:
+   - Knowledge cutoff: April 2024
+   - May require multiple interactions for complex planning
+   - Should be used with appropriate error handling
+
+## API Configuration
+- API Key: Configured in environment or directly in code
+- Endpoint: https://api.openai.com/v1/chat/completions
+- Rate Limits: Subject to OpenAI's usage policies
+
+## Integration Notes
+- Compatible with CrewAI framework
+- Supports streaming responses
+- Can be used with function calling
+- Maintains conversation context 
