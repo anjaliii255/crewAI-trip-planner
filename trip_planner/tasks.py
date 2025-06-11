@@ -1,13 +1,11 @@
-from crewai import Task
 from textwrap import dedent
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 class TravelTasks:
     def plan_itinerary(self, agent, cities: List[str], date_range: Dict[str, str], 
-                      interests: List[str], budget: Optional[float] = None) -> Task:
-        return Task(
-            description=dedent(f"""
+                      interests: List[str], budget: Optional[float] = None) -> str:
+        return dedent(f"""
                 Create a detailed travel itinerary for the following trip:
                 - Cities to visit: {', '.join(cities)}
                 - Date range: {date_range['start']} to {date_range['end']}
@@ -31,15 +29,12 @@ class TravelTasks:
                 - Account for local holidays or events
                 - Consider weather conditions
                 - Include emergency contact information
-            """),
-            agent=agent
-        )
+            """)
 
     def identify_city(self, agent, origin: str, cities: List[str], 
                      interests: List[str], date_range: Dict[str, str],
-                     budget: Optional[float] = None) -> Task:
-        return Task(
-            description=dedent(f"""
+                     budget: Optional[float] = None) -> str:
+        return dedent(f"""
                 Analyze and recommend the best cities to visit based on:
                 - Origin: {origin}
                 - Potential cities: {', '.join(cities)}
@@ -64,14 +59,11 @@ class TravelTasks:
                 - Local events
                 - Safety
                 - Accessibility
-            """),
-            agent=agent
-        )
+            """)
 
     def gather_city_info(self, agent, cities: List[str], date_range: Dict[str, str],
-                        interests: List[str]) -> Task:
-        return Task(
-            description=dedent(f"""
+                        interests: List[str]) -> str:
+        return dedent(f"""
                 Gather detailed information about each city:
                 - Cities: {', '.join(cities)}
                 - Date range: {date_range['start']} to {date_range['end']}
@@ -88,14 +80,11 @@ class TravelTasks:
                 8. Safety tips for tourists
                 9. Language considerations
                 10. Local currency and payment methods
-            """),
-            agent=agent
-        )
+            """)
 
     def plan_transportation(self, agent, origin: str, cities: List[str],
-                          date_range: Dict[str, str]) -> Task:
-        return Task(
-            description=dedent(f"""
+                          date_range: Dict[str, str]) -> str:
+        return dedent(f"""
                 Plan transportation for the trip:
                 - Origin: {origin}
                 - Cities: {', '.join(cities)}
@@ -112,14 +101,11 @@ class TravelTasks:
                 8. Airport transfer options
                 9. Local taxi/ride-sharing services
                 10. Walking/biking routes
-            """),
-            agent=agent
-        )
+            """)
 
     def find_accommodation(self, agent, cities: List[str], date_range: Dict[str, str],
-                         budget: Optional[float] = None) -> Task:
-        return Task(
-            description=dedent(f"""
+                         budget: Optional[float] = None) -> str:
+        return dedent(f"""
                 Find suitable accommodations for:
                 - Cities: {', '.join(cities)}
                 - Date range: {date_range['start']} to {date_range['end']}
@@ -136,14 +122,11 @@ class TravelTasks:
                 8. Transportation access
                 9. Safety considerations
                 10. Special requirements options
-            """),
-            agent=agent
-        )
+            """)
 
     def create_budget(self, agent, cities: List[str], date_range: Dict[str, str],
-                     interests: List[str], budget: Optional[float] = None) -> Task:
-        return Task(
-            description=dedent(f"""
+                     interests: List[str], budget: Optional[float] = None) -> str:
+        return dedent(f"""
                 Create a detailed budget plan for:
                 - Cities: {', '.join(cities)}
                 - Date range: {date_range['start']} to {date_range['end']}
@@ -161,6 +144,4 @@ class TravelTasks:
                 8. Currency exchange tips
                 9. Payment methods
                 10. Money-saving tips
-            """),
-            agent=agent
-        ) 
+            """) 
