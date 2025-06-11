@@ -1,13 +1,26 @@
 # crewAI-trip-planner
 
-A smart, agent-based trip planner leveraging AI and OpenAI's GPT-4 for generating and managing travel itineraries. Built with Python and Jupyter Notebook, this project aims to automate and optimize trip planning with advanced reasoning and retrieval capabilities.
+A smart, agent-based trip planner leveraging AI and OpenAI's GPT-4 for generating and managing travel itineraries. Built with Python and Streamlit, this project automates and optimizes trip planning with advanced reasoning, real-time data, and modular agents.
+
+---
+
+## 🌐 Try the Live App
+
+Access the deployed Streamlit app here:  
+**[Trip Planner on Streamlit](https://appapppy-dlyihw7zvuupplcvgwnf2b.streamlit.app)**
+
+---
 
 ## Features
 
-- **Agent-based planning:** Modular agents coordinate to create and refine trip plans.
+- **Agent-based planning:** Modular agents (city selection, itinerary, budget, transport, etc.) coordinate to create and refine trip plans.
 - **Integration with OpenAI:** Utilizes GPT-4 for reasoning and retrieval-augmented generation (RAG).
-- **Jupyter Notebook demos:** Interactive exploration and rapid prototyping.
-- **Extensible tooling:** Easily add custom tasks and agents.
+- **Real-time data:** Integrates APIs for weather, events, currency, transport, and more.
+- **Guardrails:** Input/output validation and business logic enforcement for robust plans.
+- **Streamlit Web App:** User-friendly, interactive interface for planning trips.
+- **Extensible tooling:** Easily add custom tasks, agents, and tools.
+
+---
 
 ## Installation
 
@@ -18,54 +31,71 @@ A smart, agent-based trip planner leveraging AI and OpenAI's GPT-4 for generatin
    ```
 
 2. **Install dependencies:**
-   - With [Poetry](https://python-poetry.org/):
-     ```sh
-     poetry install
-     ```
-   - Or manually (see `pyproject.toml` for dependencies).
+   ```sh
+   pip install -r requirements.txt
+   ```
 
-3. **Set up OpenAI API key:**
-   - The API key is already configured in the code
-   - Alternatively, you can set it as an environment variable:
-     ```sh
-     export OPENAI_API_KEY="your-api-key"
-     ```
+3. **Set up API keys:**
+   - Add your API keys in a `.env` file (for local use) or via Streamlit secrets (for deployment).
+   - Required: `OPENAI_API_KEY`, and keys for OpenTripMap, WeatherAPI, Currency API, Eventbrite, AviationStack, TransitLand, etc.
+
+---
 
 ## Usage
 
-- **Interactive notebook demo:**  
-  Open `langgraph_rag_agent_llama3_local (1).ipynb` in JupyterLab to explore or test the planner.
-- **Run main script:**  
+- **Web App (Recommended):**  
+  Visit the live app: [Trip Planner on Streamlit](https://appapppy-dlyihw7zvuupplcvgwnf2b.streamlit.app)
+
+- **Local Development:**  
   ```sh
-  poetry run python main.py
+  streamlit run streamlit_app.py
   ```
-  Or, if not using Poetry:
+  or
+  ```sh
+  streamlit run trip_planner/app.py
+  ```
+
+- **Command-line (Advanced/Legacy):**  
   ```sh
   python main.py
   ```
+  (For CLI-based planning, not recommended for most users.)
+
+---
 
 ## Project Structure
 
-- `main.py` — Main entry point for the planner.
-- `agents.py` — Definitions of agent logic and orchestration.
-- `tasks.py` — Task definitions and workflows.
-- `tools/` — Additional utilities and tools for agents.
-- `pyproject.toml` / `poetry.lock` — Dependency management.
+- `streamlit_app.py` — Minimal entry point for Streamlit, imports and runs the main app.
+- `trip_planner/app.py` — Main Streamlit app logic and UI.
+- `trip_planner/agents.py` — Agent definitions and orchestration (city selection, itinerary, etc.).
+- `trip_planner/tasks.py` — Task prompt templates for agents.
+- `trip_planner/guardrails.py` — Input/output/business rule validation.
+- `trip_planner/tools/` — Modular tools for travel, search, and calculations.
+- `requirements.txt` — Dependency management.
+- `.streamlit/secrets.toml` — (Not committed) for API keys on Streamlit Cloud.
+- `main.py` — CLI-based planning (legacy/advanced use).
+- `langgraph_rag_agent_llama3_local (1).ipynb` — (Optional) Notebook for prototyping.
+
+---
 
 ## Requirements
 
-- Python 3.8+
-- Poetry (recommended) or pip
-- OpenAI API key
+- Python 3.11+
+- pip
+- API keys for OpenAI and other integrated services
+
+---
 
 ## Contributing
 
 Pull requests and issues are welcome! Please open an issue for bug reports or feature suggestions.
 
+---
+
 ## License
 
-[MIT](LICENSE) (or specify your license here)
+[MIT](LICENSE)
 
 ---
 
-> **Note:** This README is based on the current repository contents. For a full list of files, visit the [project directory](https://github.com/Hrishitcodethis/crewAI-trip-planner/tree/main/).
+> **Note:** For a full list of files, visit the [project directory](https://github.com/Hrishitcodethis/crewAI-trip-planner/tree/main/).
