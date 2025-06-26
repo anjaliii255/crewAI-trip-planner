@@ -7,10 +7,19 @@ import uuid
 import pandas as pd
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field, validator
-from trip_planner.tools import (
-    CalculatorTools,
-    SearchTools,
-    TravelTools
+from langchain.tools import Tool
+from trip_planner.tools.calculator_tools import CalculatorTool
+from trip_planner.tools.search_tools import SearchInternetTool
+from trip_planner.tools.travel_tools import (
+    WeatherForecastTool,
+    LocalEventsTool,
+    TravelBudgetTool,
+    SafetyInfoTool,
+    TransportationRoutesTool,
+    RestaurantRecommendationsTool,
+    AccommodationOptionsTool,
+    MatchScoreTool,
+    GeocodeTool
 )
 from trip_planner.guardrails import GuardrailManager
 from trip_planner.telemetry import setup_telemetry
@@ -121,16 +130,7 @@ class CityOutput(BaseModel):
         
         return v
 
-
-def create_tool(name: str, func, description: str):
-    """Helper function to create a tool in the correct format"""
-    print(f"Registering tool: {name} | Type: {type(func)}")  # DEBUG LINE
-    return {
-        "name": name,
-        "description": description,
-        "func": func
-    }
-
+    
 class TripAgents:
     def __init__(self, llm: ChatOpenAI, agent_name="Trip Agent"):
         self.llm = llm
@@ -149,27 +149,12 @@ class TripAgents:
                         and constraints while staying within the specified budget.
                         """),
             tools=[
-                create_tool(
-                    "search_internet",
-                    SearchTools.search_internet,
-                    "Search the internet for travel information and recommendations"
-                ),
-                create_tool(
-                    "get_weather_forecast",
-                    TravelTools.get_weather_forecast,
-                    "Get weather forecast for a destination"
-                ),
-                create_tool(
-                    "get_local_events",
-                    TravelTools.get_local_events,
-                    "Get local events for a destination"
-                ),
-                create_tool(
-                    "calculate_travel_budget",
-                    TravelTools.calculate_travel_budget,
-                    "Calculate estimated travel budget for a destination"
-                )
+                SearchInternetTool(),
+                WeatherForecastTool(),
+                LocalEventsTool(),
+                TravelBudgetTool() 
             ],
+            
             verbose=True,
             llm=self.llm,
             input_schema=TravelInput,
@@ -209,26 +194,10 @@ class TripAgents:
             verbose=True,
             llm=self.llm,
             tools=[
-                create_tool(
-                    "search_internet",
-                    SearchTools.search_internet,
-                    "Search the internet for information about cities and destinations"
-                ),
-                create_tool(
-                    "calculate_travel_budget",
-                    TravelTools.calculate_travel_budget,
-                    "Calculate estimated travel budget for a destination"
-                ),
-                create_tool(
-                    "get_safety_information",
-                    TravelTools.get_safety_information,
-                    "Get safety information for a destination"
-                ),
-                create_tool(
-                    "calculate_match_score",
-                    TravelTools.calculate_match_score,
-                    "Calculate how well a city matches the user's preferences"
-                )
+                SearchInternetTool(),
+                TravelBudgetTool(),
+                SafetyInfoTool(),
+                MatchScoreTool()
             ],
             input_schema=CityInput,
             output_schema=CityOutput,
@@ -262,9 +231,9 @@ class TripAgents:
             backstory=dedent(f"""I am an experienced local tour guide who knows all the hidden gems and must-see spots in the city."""),
             goal=dedent(f"""Create a detailed itinerary for a day tour in the city, including food recommendations, cultural experiences, and shopping spots."""),
             tools=[
-                SearchTools.search_internet,
-                TravelTools.get_local_events,
-                TravelTools.get_restaurant_recommendations
+                SearchInternetTool(),
+                LocalEventsTool(),
+                RestaurantRecommendationsTool()
             ],
             verbose=True,
             llm=self.llm,
@@ -278,10 +247,10 @@ class TripAgents:
             goal=dedent(f"""Plan optimal transportation routes, suggest the best travel methods, provide public transit information, 
                         and estimate accurate travel times between locations for the traveler's itinerary."""),
             tools=[
-                SearchTools.search_internet,
-                CalculatorTools.calculate,
-                TravelTools.get_transportation_routes,
-                TravelTools.calculate_travel_budget
+                SearchInternetTool(),
+                CalculatorTool(),
+                TransportationRoutesTool(),
+                TravelBudgetTool(),
             ],
             verbose=True,
             llm=self.llm,
@@ -295,27 +264,12 @@ class TripAgents:
             goal=dedent(f"""Recommend the best hotels and rentals, suggest ideal neighborhoods to stay in, provide booking tips, 
                         and analyze accommodation reviews to ensure the best stay for travelers."""),
             tools=[
-                create_tool(
-                    "search_internet",
-                    SearchTools.search_internet,
-                    "Search the internet for accommodation information"
-                ),
-                create_tool(
-                    "get_accommodation_options",
-                    TravelTools.get_accommodation_options,
-                    "Get accommodation options for a destination"
-                ),
-                create_tool(
-                    "calculate_travel_budget",
-                    TravelTools.calculate_travel_budget,
-                    "Calculate estimated travel budget for a destination"
-                ),
-                create_tool(
-                    "get_safety_information",
-                    TravelTools.get_safety_information,
-                    "Get safety information for a destination"
-                )
+                SearchInternetTool(),
+                AccommodationOptionsTool(),
+                TravelBudgetTool(),
+                SafetyInfoTool()
             ],
+            
             verbose=True,
             llm=self.llm,
         )
@@ -328,26 +282,10 @@ class TripAgents:
             goal=dedent(f"""Recommend the best restaurants, suggest local specialties, provide dietary restriction information, 
                         and create comprehensive food tour itineraries that showcase the destination's culinary scene."""),
             tools=[
-                create_tool(
-                    "search_internet",
-                    SearchTools.search_internet,
-                    "Search the internet for food and dining information"
-                ),
-                create_tool(
-                    "get_restaurant_recommendations",
-                    TravelTools.get_restaurant_recommendations,
-                    "Get restaurant recommendations for a destination"
-                ),
-                create_tool(
-                    "get_local_events",
-                    TravelTools.get_local_events,
-                    "Get local events for a destination"
-                ),
-                create_tool(
-                    "calculate_travel_budget",
-                    TravelTools.calculate_travel_budget,
-                    "Calculate estimated travel budget for a destination"
-                )
+                SearchInternetTool(),
+                RestaurantRecommendationsTool(),
+                LocalEventsTool(),
+                TravelBudgetTool()
             ],
             verbose=True,
             llm=self.llm,
@@ -364,26 +302,10 @@ class TripAgents:
             verbose=True,
             llm=self.llm,
             tools=[
-                create_tool(
-                    "search_internet",
-                    SearchTools.search_internet,
-                    "Search the internet for travel information"
-                ),
-                create_tool(
-                    "get_weather_forecast",
-                    TravelTools.get_weather_forecast,
-                    "Get weather forecast for a destination"
-                ),
-                create_tool(
-                    "get_local_events",
-                    TravelTools.get_local_events,
-                    "Get local events for a destination"
-                ),
-                create_tool(
-                    "calculate_travel_budget",
-                    TravelTools.calculate_travel_budget,
-                    "Calculate estimated travel budget for a destination"
-                )
+                SearchInternetTool(),
+                WeatherForecastTool(),
+                LocalEventsTool(),
+                TravelBudgetTool()
             ],
             output_format={
                 "type": "json",
@@ -434,16 +356,8 @@ class TripAgents:
             verbose=True,
             llm=self.llm,
             tools=[
-                create_tool(
-                    "calculate_travel_budget",
-                    TravelTools.calculate_travel_budget,
-                    "Calculate estimated travel budget for a destination"
-                ),
-                create_tool(
-                    "calculate",
-                    CalculatorTools.calculate,
-                    "Perform calculations for budget planning"
-                )
+                SearchInternetTool(),
+                CalculatorTool(),
             ],
             output_format={
                 "type": "json",
@@ -460,6 +374,7 @@ class TripAgents:
         )
 
 def configure_tracing(agent_name: str):
+    
     """Configure tracing for the agent"""
     try:
         setup_telemetry()
