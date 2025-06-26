@@ -4,15 +4,17 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import os
+import litellm
 from dotenv import load_dotenv
 load_dotenv()
 from trip_planner.telemetry import setup_telemetry
 from langchain_openai import ChatOpenAI
 from .agents import TripAgents, TravelInput, CityInput
 from .guardrails import GuardrailManager
-from .tools import TravelTools
+from .tools.travel_tools import WeatherForecastTool, LocalEventsTool,SafetyInfoTool
 from crewai import Task, Crew
 from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 # Initialize telemetry (will only initialize once due to singleton pattern)
 tracer_provider = setup_telemetry()
@@ -30,6 +32,7 @@ else:
     with tracer.start_as_current_span("app_initialization") as span:
         span.set_attribute("app.name", "AI Travel Planner")
         span.set_attribute("app.version", "1.0.0")
+        span.set_status(Status(StatusCode.OK)) 
         st.info("Test trace created successfully!")
 
 # Custom CSS
@@ -48,12 +51,16 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Set OpenAI API key
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
-if not os.environ["OPENAI_API_KEY"]:
-    st.error("Please set the OPENAI_API_KEY environment variable")
-    st.stop()
+#os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+#if not os.environ["OPENAI_API_KEY"]:
+#    st.error("Please set the OPENAI_API_KEY environment variable")
+#    st.stop()
 
-# Initialize OpenAI
+os.environ["OPENAI_API_KEY"] =  os.getenv("OPENAI_API_KEY", "") # <-- replace with real key
+litellm.api_key = os.environ["OPENAI_API_KEY"]
+
+    
+    
 llm = ChatOpenAI(
     model="gpt-4-turbo-preview",
     temperature=0.7
@@ -86,7 +93,7 @@ def display_header():
 def display_weather_forecast(destination: str, date: str):
     """Display weather forecast for a destination"""
     with st.spinner("Getting weather forecast..."):
-        weather = TravelTools.get_weather_forecast(destination, date)
+        weather = WeatherForecastTool.get_weather_forecast(destination, date)
         col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
         col1.metric("Temperature", f"{weather['temperature']}°C")
         # Use markdown for condition to avoid truncation
@@ -98,7 +105,7 @@ def display_weather_forecast(destination: str, date: str):
 def display_safety_info(destination: str):
     """Display safety information for a destination"""
     with st.spinner("Getting safety information..."):
-        safety_info = json.loads(TravelTools.get_safety_information(destination))
+        safety_info = json.loads(SafetyInfoTool.get_safety_information(destination))
         st.subheader("Safety Information")
         st.info(f"General Safety: {safety_info['general_safety']}")
         st.info(f"Health Concerns: {safety_info['health_concerns']}")
@@ -109,7 +116,7 @@ def display_safety_info(destination: str):
 def display_local_events(destination: str, date_range: dict):
     """Display local events for a destination"""
     with st.spinner("Getting local events..."):
-        events = TravelTools.get_local_events(destination, date_range)
+        events = LocalEventsTool.get_local_events(destination, date_range)
         st.subheader("Local Events")
         for event in events:
             with st.expander(f"🎉 {event['name']} - {event['date']}"):
@@ -174,10 +181,10 @@ def display_city_recommendations(cities):
             st.markdown(f"**Estimated Daily Cost:** ${city['estimated_cost']['total_per_day']}")
             st.markdown(f"**Highlights:** {' | '.join(city['highlights'])}")
             # Weather summary
-            weather = TravelTools.get_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
+            weather = WeatherForecastTool.get_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
             st.markdown(f"**Weather:** {weather['temperature']}°C, {weather['condition']}")
             # Events summary
-            events = TravelTools.get_local_events(city['name'])
+            events = LocalEventsTool.get_local_events(city['name'])
             if events:
                 st.markdown(f"**Events:** {events[0]['name']} ({events[0]['date'][:10]})")
             # Safety summary
@@ -194,7 +201,7 @@ def display_city_recommendations(cities):
             display_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
             display_safety_info(city['name'])
             st.markdown("**Events:**")
-            for event in TravelTools.get_local_events(city['name']):
+            for event in LocalEventsTool.get_local_events(city['name']):
                 st.markdown(f"- {event['name']} ({event['date'][:10]})")
             st.markdown("**Estimated Daily Costs:**")
             costs = city['estimated_cost']
@@ -342,9 +349,31 @@ def city_selection_form():
             with st.spinner("Getting city recommendations..."):
                 city_expert = agents.city_selection_expert()
                 task = Task(
-                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.\nReturn at least 5 cities in the response.\nYour response MUST be a valid JSON object with the following structure:\n{{\n    \"recommended_cities\": [\n        {{\n            \"name\": \"City Name\",\n            \"country\": \"Country Name\",\n            \"description\": \"Brief description of the city\",\n            \"match_score\": 0.95,\n            \"highlights\": [\"Highlight 1\", \"Highlight 2\"],\n            \"estimated_cost\": {{\n                \"accommodation\": 100,\n                \"food\": 50,\n                \"activities\": 75,\n                \"total_per_day\": 225\n            }}\n        }}\n    ]\n}}""",
+                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.
+                    Return at least 5 cities in the response.
+                    Your response MUST be a valid JSON object with the following structure:
+                    {{
+                        "recommended_cities": [
+                            {{
+                                "name": "City Name",
+                                "country": "Country Name",
+                                "description": "Brief description of the city",
+                                "match_score": 0.95,
+                                "highlights": ["Highlight 1", "Highlight 2"],
+                                "estimated_cost": 
+                                {{
+                                    "accommodation": 100,
+                                    "food": 50,
+                                    "activities": 75,
+                                    "total_per_day": 225
+                                }}
+                            }}
+                        ]
+                    }}""",
+                    expected_output="JSON with a list of at least 5 recommended cities and their details.",
                     agent=city_expert
                 )
+
                 crew = Crew(
                     agents=[city_expert],
                     tasks=[task]
@@ -353,10 +382,23 @@ def city_selection_form():
                     span.set_attribute("season", season)
                     span.set_attribute("budget", budget)
                     span.set_attribute("preferences", str(preferences))
-                    result = crew.kickoff()
+                    
+                    result = None 
+                    
+                    try:
+                        result = crew.kickoff()
+                        span.set_status(Status(StatusCode.OK))
+                    except Exception as e:
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        st.error(f"Agent execution error: {e}")
+                        import traceback
+                        traceback.print_exc()
                 
                 # Debug logging
-                st.write("Raw result:", result)
+                if result:
+                    st.write("Raw result:", result)
+                else:
+                    st.warning("No result received from the agent.")
                 
                 # Validate output using guardrails
                 try:
@@ -557,7 +599,14 @@ def travel_planning_form():
                     span.set_attribute("destination", travel_input.destination)
                     span.set_attribute("duration_days", (end_date - start_date).days)
                     span.set_attribute("activities", str(activities))
-                    result = crew.kickoff()
+                    try:
+                        result = crew.kickoff()
+                        span.set_status(Status(StatusCode.OK)) 
+                    except Exception as e:
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        st.error(f"Agent execution error: {e}")
+                        import traceback
+                        traceback.print_exc()
                 
                 # Validate output using guardrails
                 try:

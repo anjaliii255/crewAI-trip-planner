@@ -3,10 +3,10 @@ import os
 from phoenix.otel import register
 
 # Configure Phoenix
-os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://app.phoenix.arize.com/v1/traces"
+os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://agentopsacc-backend-app.yellowriver-a22b4385.westus.azurecontainerapps.io/v1/traces"
 tracer_provider = register(
     project_name="crewAI-trip-planner",
-    endpoint="https://app.phoenix.arize.com/v1/traces",
+    endpoint="https://agentopsacc-backend-app.yellowriver-a22b4385.westus.azurecontainerapps.io/v1/traces",
     auto_instrument=True
 )
 
