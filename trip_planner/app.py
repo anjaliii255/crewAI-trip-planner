@@ -15,25 +15,35 @@ from .tools.travel_tools import WeatherForecastTool, LocalEventsTool,SafetyInfoT
 from crewai import Task, Crew
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
+import openai
+
+st.success("Telemetry initialized successfully!")
+tracer = trace.get_tracer(__name__)
+with tracer.start_as_current_span("app_initialization") as span:
+    span.set_attribute("app.name", "AI Travel Planner")
+    span.set_attribute("app.version", "1.0.0")
+    span.set_status(Status(StatusCode.OK)) 
+        
+st.info("Test trace created successfully!")
 
 # Initialize telemetry (will only initialize once due to singleton pattern)
-tracer_provider = setup_telemetry()
-if tracer_provider is None:
-    st.warning("""
-    Telemetry is not available. The application will continue without tracing.
-    To enable tracing, set the following environment variables:
-    - PHOENIX_ENABLED=true
-    - PHOENIX_CLIENT_HEADERS=api_key=your_phoenix_api_key
-    """)
-else:
-    st.success("Telemetry initialized successfully!")
+#tracer_provider = setup_telemetry()
+#if tracer_provider is None:
+#    st.warning("""
+#    Telemetry is not available. The application will continue without tracing.
+#    To enable tracing, set the following environment variables:
+#    - PHOENIX_ENABLED=true
+#    - PHOENIX_CLIENT_HEADERS=api_key=your_phoenix_api_key
+#    """)
+#else:
+#    st.success("Telemetry initialized successfully!")
     # Test trace
-    tracer = trace.get_tracer(__name__)
-    with tracer.start_as_current_span("app_initialization") as span:
-        span.set_attribute("app.name", "AI Travel Planner")
-        span.set_attribute("app.version", "1.0.0")
-        span.set_status(Status(StatusCode.OK)) 
-        st.info("Test trace created successfully!")
+#    tracer = trace.get_tracer(__name__)
+#    with tracer.start_as_current_span("app_initialization") as span:
+#        span.set_attribute("app.name", "AI Travel Planner")
+#        span.set_attribute("app.version", "1.0.0")
+#        span.set_status(Status(StatusCode.OK)) 
+#        st.info("Test trace created successfully!")
 
 # Custom CSS
 st.markdown("""
@@ -56,14 +66,16 @@ st.markdown("""
 #    st.error("Please set the OPENAI_API_KEY environment variable")
 #    st.stop()
 
-os.environ["OPENAI_API_KEY"] =  os.getenv("OPENAI_API_KEY", "") # <-- replace with real key
+os.environ["OPENAI_API_KEY"] =  os.getenv("OPENAI_API_KEY") # <-- replace with real key
 litellm.api_key = os.environ["OPENAI_API_KEY"]
 
     
     
 llm = ChatOpenAI(
     model="gpt-4-turbo-preview",
-    temperature=0.7
+    temperature=0.7,
+    streaming=True,                           #enable streaming
+    model_kwargs={"stream_options": {"include_usage": True}}
 )
 
 
@@ -387,6 +399,31 @@ def city_selection_form():
                     
                     try:
                         result = crew.kickoff()
+                        # --- Token usage tracing for Phoenix ---
+                        usage = None
+                        if isinstance(result, dict) and "token_usage" in result:
+                            u = result["token_usage"]                 # UsageMetrics object
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        elif hasattr(result, "token_usage"):          # CrewOutput object
+                            u = result.token_usage
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        if usage:
+                            try:
+                                span.set_attribute("token.usage.prompt",     int(usage.get("prompt_tokens", 0)))
+                                span.set_attribute("token.usage.completion", int(usage.get("completion_tokens", 0)))
+                                span.set_attribute("token.usage.total",      int(usage.get("total_tokens", 0)))
+                                print("Set Phoenix token attributes:", usage)
+                            except Exception as e:
+                                print("Error setting Phoenix token attributes:", e, usage)
+                        # --- End token usage tracing ---
                         span.set_status(Status(StatusCode.OK))
                     except Exception as e:
                         span.set_status(Status(StatusCode.ERROR, str(e)))
@@ -601,7 +638,32 @@ def travel_planning_form():
                     span.set_attribute("activities", str(activities))
                     try:
                         result = crew.kickoff()
-                        span.set_status(Status(StatusCode.OK)) 
+                        # --- Token usage tracing for Phoenix ---
+                        usage = None
+                        if isinstance(result, dict) and "token_usage" in result:
+                            u = result["token_usage"]                 # UsageMetrics object
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        elif hasattr(result, "token_usage"):          # CrewOutput object
+                            u = result.token_usage
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        if usage:
+                            try:
+                                span.set_attribute("token.usage.prompt",     int(usage.get("prompt_tokens", 0)))
+                                span.set_attribute("token.usage.completion", int(usage.get("completion_tokens", 0)))
+                                span.set_attribute("token.usage.total",      int(usage.get("total_tokens", 0)))
+                                print("Set Phoenix token attributes:", usage)
+                            except Exception as e:
+                                print("Error setting Phoenix token attributes:", e, usage)
+                        # --- End token usage tracing ---
+                        span.set_status(Status(StatusCode.OK))
                     except Exception as e:
                         span.set_status(Status(StatusCode.ERROR, str(e)))
                         st.error(f"Agent execution error: {e}")
