@@ -7,8 +7,15 @@ os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://agentopsacc-backend-app.yell
 tracer_provider = register(
     project_name="crewAI-trip-planner",
     endpoint="https://agentopsacc-backend-app.yellowriver-a22b4385.westus.azurecontainerapps.io/v1/traces",
-    auto_instrument=True
+    auto_instrument=True,
+    batch=True
 )
+
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
+LiteLLMInstrumentor().instrument()
+
+from openinference.instrumentation.langchain import LangChainInstrumentor
+LangChainInstrumentor().instrument()
 
 # Now import Streamlit and other dependencies
 import streamlit as st
