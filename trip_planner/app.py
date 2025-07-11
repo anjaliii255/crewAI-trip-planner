@@ -4,33 +4,46 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import os
+import litellm
 from dotenv import load_dotenv
 load_dotenv()
 from trip_planner.telemetry import setup_telemetry
 from langchain_openai import ChatOpenAI
 from .agents import TripAgents, TravelInput, CityInput
 from .guardrails import GuardrailManager
-from .tools import TravelTools
+from .tools.travel_tools import WeatherForecastTool, LocalEventsTool,SafetyInfoTool
 from crewai import Task, Crew
 from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+import openai
+
+st.success("Telemetry initialized successfully!")
+tracer = trace.get_tracer(__name__)
+with tracer.start_as_current_span("app_initialization") as span:
+    span.set_attribute("app.name", "AI Travel Planner")
+    span.set_attribute("app.version", "1.0.0")
+    span.set_status(Status(StatusCode.OK)) 
+        
+st.info("Test trace created successfully!")
 
 # Initialize telemetry (will only initialize once due to singleton pattern)
-tracer_provider = setup_telemetry()
-if tracer_provider is None:
-    st.warning("""
-    Telemetry is not available. The application will continue without tracing.
-    To enable tracing, set the following environment variables:
-    - PHOENIX_ENABLED=true
-    - PHOENIX_CLIENT_HEADERS=api_key=your_phoenix_api_key
-    """)
-else:
-    st.success("Telemetry initialized successfully!")
+#tracer_provider = setup_telemetry()
+#if tracer_provider is None:
+#    st.warning("""
+#    Telemetry is not available. The application will continue without tracing.
+#    To enable tracing, set the following environment variables:
+#    - PHOENIX_ENABLED=true
+#    - PHOENIX_CLIENT_HEADERS=api_key=your_phoenix_api_key
+#    """)
+#else:
+#    st.success("Telemetry initialized successfully!")
     # Test trace
-    tracer = trace.get_tracer(__name__)
-    with tracer.start_as_current_span("app_initialization") as span:
-        span.set_attribute("app.name", "AI Travel Planner")
-        span.set_attribute("app.version", "1.0.0")
-        st.info("Test trace created successfully!")
+#    tracer = trace.get_tracer(__name__)
+#    with tracer.start_as_current_span("app_initialization") as span:
+#        span.set_attribute("app.name", "AI Travel Planner")
+#        span.set_attribute("app.version", "1.0.0")
+#        span.set_status(Status(StatusCode.OK)) 
+#        st.info("Test trace created successfully!")
 
 # Custom CSS
 st.markdown("""
@@ -48,15 +61,21 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Set OpenAI API key
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
-if not os.environ["OPENAI_API_KEY"]:
-    st.error("Please set the OPENAI_API_KEY environment variable")
-    st.stop()
+#os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+#if not os.environ["OPENAI_API_KEY"]:
+#    st.error("Please set the OPENAI_API_KEY environment variable")
+#    st.stop()
 
-# Initialize OpenAI
+os.environ["OPENAI_API_KEY"] =  os.getenv("OPENAI_API_KEY") # <-- replace with real key
+litellm.api_key = ""
+
+    
+    
 llm = ChatOpenAI(
     model="gpt-4-turbo-preview",
-    temperature=0.7
+    temperature=0.7,
+    streaming=True,                           #enable streaming
+    model_kwargs={"stream_options": {"include_usage": True}}
 )
 
 
@@ -74,6 +93,8 @@ def initialize_session_state():
         st.session_state.selected_cities = None
     if 'current_step' not in st.session_state:
         st.session_state.current_step = 'city_selection'
+    if 'show_proceed_button' not in st.session_state:
+        st.session_state.show_proceed_button = False
 
 def display_header():
     """Display the application header"""
@@ -86,10 +107,10 @@ def display_header():
 def display_weather_forecast(destination: str, date: str):
     """Display weather forecast for a destination"""
     with st.spinner("Getting weather forecast..."):
-        weather = TravelTools.get_weather_forecast(destination, date)
+        weather_tool = WeatherForecastTool()
+        weather = json.loads(weather_tool._run(destination, date))
         col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
         col1.metric("Temperature", f"{weather['temperature']}°C")
-        # Use markdown for condition to avoid truncation
         col2.markdown(f"<span style='font-size:1.5em'>{weather['condition']}</span>", unsafe_allow_html=True)
         col3.metric("Humidity", f"{weather['humidity']}%")
         col4.metric("Wind Speed", f"{weather['wind_speed']} km/h")
@@ -98,7 +119,8 @@ def display_weather_forecast(destination: str, date: str):
 def display_safety_info(destination: str):
     """Display safety information for a destination"""
     with st.spinner("Getting safety information..."):
-        safety_info = json.loads(TravelTools.get_safety_information(destination))
+        safety_tool = SafetyInfoTool()
+        safety_info = json.loads(safety_tool._run(destination))
         st.subheader("Safety Information")
         st.info(f"General Safety: {safety_info['general_safety']}")
         st.info(f"Health Concerns: {safety_info['health_concerns']}")
@@ -106,15 +128,16 @@ def display_safety_info(destination: str):
         st.info(f"Natural Disasters: {safety_info['natural_disasters']}")
     st.markdown("<br>", unsafe_allow_html=True)
 
-def display_local_events(destination: str, date_range: dict):
+def display_local_events(destination: str, date_range: dict = None):
     """Display local events for a destination"""
     with st.spinner("Getting local events..."):
-        events = TravelTools.get_local_events(destination, date_range)
+        events_tool = LocalEventsTool()
+        events = json.loads(events_tool._run(destination, date_range))
         st.subheader("Local Events")
         for event in events:
-            with st.expander(f"🎉 {event['name']} - {event['date']}"):
-                st.markdown(f"**Location:** {event['location']}")
-                st.markdown(f"**Description:** {event['description']}")
+            with st.expander(f"🎉 {event.get('name', 'Event')} - {event.get('date', '')}"):
+                st.markdown(f"**Location:** {event.get('location', event.get('venue', ''))}")
+                st.markdown(f"**Description:** {event.get('description', '')}")
 
 def display_budget_analysis(budget_breakdown: dict):
     """Display budget analysis with visualizations"""
@@ -174,12 +197,14 @@ def display_city_recommendations(cities):
             st.markdown(f"**Estimated Daily Cost:** ${city['estimated_cost']['total_per_day']}")
             st.markdown(f"**Highlights:** {' | '.join(city['highlights'])}")
             # Weather summary
-            weather = TravelTools.get_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
+            weather_tool = WeatherForecastTool()
+            weather = json.loads(weather_tool._run(city['name'], datetime.now().strftime("%Y-%m-%d")))
             st.markdown(f"**Weather:** {weather['temperature']}°C, {weather['condition']}")
             # Events summary
-            events = TravelTools.get_local_events(city['name'])
+            events_tool = LocalEventsTool()
+            events = json.loads(events_tool._run(city['name'], None))
             if events:
-                st.markdown(f"**Events:** {events[0]['name']} ({events[0]['date'][:10]})")
+                st.markdown(f"**Events:** {events[0].get('name', 'Event')} ({events[0].get('date', '')[:10]})")
             # Safety summary
             st.markdown("[Travel Advisory](https://www.travel-advisory.info/) for safety info.")
             st.markdown("---")
@@ -194,8 +219,9 @@ def display_city_recommendations(cities):
             display_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
             display_safety_info(city['name'])
             st.markdown("**Events:**")
-            for event in TravelTools.get_local_events(city['name']):
-                st.markdown(f"- {event['name']} ({event['date'][:10]})")
+            events_tool = LocalEventsTool()
+            for event in json.loads(events_tool._run(city['name'], None)):
+                st.markdown(f"- {event.get('name', 'Event')} ({event.get('date', '')[:10]})")
             st.markdown("**Estimated Daily Costs:**")
             costs = city['estimated_cost']
             st.metric("Accommodation", f"${costs['accommodation']}")
@@ -342,9 +368,31 @@ def city_selection_form():
             with st.spinner("Getting city recommendations..."):
                 city_expert = agents.city_selection_expert()
                 task = Task(
-                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.\nReturn at least 5 cities in the response.\nYour response MUST be a valid JSON object with the following structure:\n{{\n    \"recommended_cities\": [\n        {{\n            \"name\": \"City Name\",\n            \"country\": \"Country Name\",\n            \"description\": \"Brief description of the city\",\n            \"match_score\": 0.95,\n            \"highlights\": [\"Highlight 1\", \"Highlight 2\"],\n            \"estimated_cost\": {{\n                \"accommodation\": 100,\n                \"food\": 50,\n                \"activities\": 75,\n                \"total_per_day\": 225\n            }}\n        }}\n    ]\n}}""",
+                    description=f"""Based on these preferences: {city_input.dict()}, recommend cities for travel.
+                    Return at least 5 cities in the response.
+                    Your response MUST be a valid JSON object with the following structure:
+                    {{
+                        "recommended_cities": [
+                            {{
+                                "name": "City Name",
+                                "country": "Country Name",
+                                "description": "Brief description of the city",
+                                "match_score": 0.95,
+                                "highlights": ["Highlight 1", "Highlight 2"],
+                                "estimated_cost": 
+                                {{
+                                    "accommodation": 100,
+                                    "food": 50,
+                                    "activities": 75,
+                                    "total_per_day": 225
+                                }}
+                            }}
+                        ]
+                    }}""",
+                    expected_output="JSON with a list of at least 5 recommended cities and their details.",
                     agent=city_expert
                 )
+
                 crew = Crew(
                     agents=[city_expert],
                     tasks=[task]
@@ -353,20 +401,83 @@ def city_selection_form():
                     span.set_attribute("season", season)
                     span.set_attribute("budget", budget)
                     span.set_attribute("preferences", str(preferences))
-                    result = crew.kickoff()
-                
+                    
+                    result = None 
+                    
+                    try:
+                        result = crew.kickoff()
+                        # --- Token usage tracing for Phoenix ---
+                        usage = None
+                        if isinstance(result, dict) and "token_usage" in result:
+                            u = result["token_usage"]                 # UsageMetrics object
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        elif hasattr(result, "token_usage"):          # CrewOutput object
+                            u = result.token_usage
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        if usage:
+                            try:
+                                span.set_attribute("token.usage.prompt",     int(usage.get("prompt_tokens", 0)))
+                                span.set_attribute("token.usage.completion", int(usage.get("completion_tokens", 0)))
+                                span.set_attribute("token.usage.total",      int(usage.get("total_tokens", 0)))
+                                print("Set Phoenix token attributes:", usage)
+                            except Exception as e:
+                                print("Error setting Phoenix token attributes:", e, usage)
+                        # --- End token usage tracing ---
+                        span.set_status(Status(StatusCode.OK))
+                    except Exception as e:
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        st.error(f"Agent execution error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        return
                 # Debug logging
-                st.write("Raw result:", result)
+                #if result:
+                #    st.write("Raw result:", result)
+                #else:
+                #    st.warning("No result received from the agent.")
                 
                 # Validate output using guardrails
-                try:
+                #try:
                     # Try to parse the result as JSON
-                    if isinstance(result, str):
-                        result_data = json.loads(result)
+                    #if isinstance(result, str):
+                    #    result_data = json.loads(result)
+                    #else:
+                    #    result_data = result
+                    #if isinstance(result, dict) and "raw" in result:
+                    #    try:
+                    #        result_data = json.loads(result["raw"])
+                    #    except Exception as e:
+                    #        st.error("Could not parse the 'raw' field as JSON.")
+                    #        st.write("Raw value:", result["raw"])
+                    #        return
+                    #else:
+                    #    result_data = result
+                    #st.write("Parsed result data:", result_data)
+                    # Parse the result - FIX THE MAIN ISSUE HERE
+                try:
+                    # The result from CrewAI is typically a CrewOutput object
+                    # Extract the raw text from the result
+                    if hasattr(result, 'raw'):
+                        raw_text = result.raw
+                    elif isinstance(result, str):
+                        raw_text = result
                     else:
-                        result_data = result
+                        raw_text = str(result)
                     
-                    st.write("Parsed result data:", result_data)
+                    st.write("DEBUG - Raw result:", raw_text)
+                    
+                    # Parse the JSON from the raw text
+                    result_data = json.loads(raw_text)
+                    st.write("DEBUG - Parsed result data:", result_data)
+                    
                     
                     # Validate the structure
                     if not isinstance(result_data, dict):
@@ -406,14 +517,12 @@ def city_selection_form():
                     
                     # Store in session state
                     st.session_state.selected_cities = result_data
-                    st.write("Session state after update:", st.session_state.selected_cities)
-                    
-                    # Display recommendations
-                    try:
-                        display_city_recommendations(result_data['recommended_cities'])
-                    except Exception as e:
-                        st.error(f"Error displaying recommendations: {str(e)}")
-                        st.write("Debug - Cities data:", result_data['recommended_cities'])
+                    st.session_state.current_step = 'travel_planning'
+                    display_city_recommendations(result_data['recommended_cities'])
+                    # Show success message and set flag for proceed button
+                    st.success("✅ City recommendations generated successfully!")
+                    st.session_state.show_proceed_button = True
+                    return
                 
                 except json.JSONDecodeError as e:
                     st.error("Invalid JSON response from the AI. Please try again.")
@@ -437,10 +546,18 @@ def city_selection_form():
                         ]
                     }
                     st.session_state.selected_cities = fallback_response
-                    display_city_recommendations(fallback_response['recommended_cities'])
+                    #display_city_recommendations(fallback_response['recommended_cities'])
+                    st.session_state.trigger_next_step = True
                 except Exception as e:
                     st.error(f"Unexpected error: {str(e)}")
                     st.write("Debug - Full error:", e)
+
+    # OUTSIDE the form, show the proceed button if flag is set
+    if st.session_state.get("show_proceed_button"):
+        if st.button("Proceed to Travel Planning"):
+            st.session_state.current_step = 'travel_planning'
+            st.session_state.show_proceed_button = False
+            st.rerun()
 
 def travel_planning_form():
     """Display the travel planning form and handle travel plan generation"""
@@ -557,11 +674,55 @@ def travel_planning_form():
                     span.set_attribute("destination", travel_input.destination)
                     span.set_attribute("duration_days", (end_date - start_date).days)
                     span.set_attribute("activities", str(activities))
-                    result = crew.kickoff()
+                    try:
+                        result = crew.kickoff()
+                        # --- Token usage tracing for Phoenix ---
+                        usage = None
+                        if isinstance(result, dict) and "token_usage" in result:
+                            u = result["token_usage"]                 # UsageMetrics object
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        elif hasattr(result, "token_usage"):          # CrewOutput object
+                            u = result.token_usage
+                            usage = {
+                                "prompt_tokens":     u.prompt_tokens,
+                                "completion_tokens": u.completion_tokens,
+                                "total_tokens":      u.total_tokens,
+                            }
+                        if usage:
+                            try:
+                                span.set_attribute("token.usage.prompt",     int(usage.get("prompt_tokens", 0)))
+                                span.set_attribute("token.usage.completion", int(usage.get("completion_tokens", 0)))
+                                span.set_attribute("token.usage.total",      int(usage.get("total_tokens", 0)))
+                                print("Set Phoenix token attributes:", usage)
+                            except Exception as e:
+                                print("Error setting Phoenix token attributes:", e, usage)
+                        # --- End token usage tracing ---
+                        span.set_status(Status(StatusCode.OK))
+                    except Exception as e:
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        st.error(f"Agent execution error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        return
                 
-                # Validate output using guardrails
+                # Parse the result
                 try:
-                    result_data = json.loads(result)
+                    # Extract raw text from the result
+                    if hasattr(result, 'raw'):
+                        raw_text = result.raw
+                    elif isinstance(result, str):
+                        raw_text = result
+                    else:
+                        raw_text = str(result)
+                    
+                    result_data = json.loads(raw_text)
+                # Validate output using guardrails
+                #try:
+                    #result_data = json.loads(result)
                     is_valid, error_message = guardrails.validate_output(result_data, "travel_plan")
                     if not is_valid:
                         st.error(error_message)
@@ -579,26 +740,36 @@ def travel_planning_form():
                     st.error("Invalid response format from the AI. Please try again.")
 
 def main():
+
     """Main function to run the Streamlit app"""
     initialize_session_state()
     display_header()
     
     # Sidebar navigation
     st.sidebar.title("Navigation")
+    st.sidebar.markdown(f"**Current Step →** `{st.session_state.current_step}`")   #new
     if st.sidebar.button("Start Over"):
         st.session_state.current_step = 'city_selection'
         st.session_state.travel_plan = None
         st.session_state.selected_cities = None
         st.rerun()
     
-    # Main content
+    # Main content based on current step
     if st.session_state.current_step == 'city_selection':
         city_selection_form()
     elif st.session_state.current_step == 'travel_planning':
-        travel_planning_form()
-        if st.session_state.travel_plan:
-            st.success("Your travel plan is ready! 🎉")
-            st.balloons()
+        if st.session_state.selected_cities is None:
+            st.error("No cities selected. Please go back to city selection.")
+            if st.button("Back to City Selection"):
+                st.session_state.current_step = 'city_selection'
+                st.rerun()
+        else:
+            travel_planning_form()
+    
+    # Show success message when travel plan is ready
+    if st.session_state.travel_plan:
+        st.success("Your travel plan is ready! 🎉")
+        st.balloons()
 
 if __name__ == "__main__":
     main() 

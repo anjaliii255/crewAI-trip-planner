@@ -8,10 +8,12 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-crewai = "^0.11.0"
-langchain = "^0.1.0"
-langchain-openai = "^0.0.2"
+python = ">=3.10,<3.14"
+crewai = "^0.130.0"
+langchain = ">=0.3.1,<0.4.0"
+langchain-openai = ">=0.2.1,<0.3.0"
+langsmith = ">=0.3.18,<0.4.0"
+tiktoken = ">=0.8.0"
 streamlit = "^1.32.0"
 pydantic = "^2.6.1"
 plotly = "^5.18.0"
@@ -23,10 +25,10 @@ pyowm = '3.3.0'
 python-dotenv = "1.0.0"
 openai = "^1.12.0"
 setuptools = "^69.2.0"
-opentelemetry-api = "1.20.0"
-opentelemetry-sdk = "1.20.0"
-opentelemetry-exporter-otlp = "1.20.0"
-opentelemetry-instrumentation-crewai = "0.1.0"
+opentelemetry-api = ">=1.28.0,<2.0.0"
+opentelemetry-sdk = ">=1.28.0,<2.0.0"
+opentelemetry-exporter-otlp = ">=1.28.0,<2.0.0"
+opentelemetry-instrumentation-crewai = "0.40.11"
 
 [tool.pyright]
 # https://github.com/microsoft/pyright/blob/main/docs/configuration.md
