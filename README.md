@@ -16,7 +16,7 @@ app)**
 - **Observability and tracing with Arize Phoenix**
 
 ## Arize Phoenix Integration (Tracing & Observability)
-This app integrates with [Arize Phoenix](https://github.com/Arize-ai/phoenix) for observability and tracing of key user actions. Phoenix allows you to monitor, debug, and analyze the flow of your AI-powered app.
+This app integrates with [Arize Phoenix]for observability and tracing of key user actions. Phoenix allows you to monitor, debug, and analyze the flow of your AI-powered app.
 
 **Traced actions include:**
 - `app_initialization`: When the app starts
