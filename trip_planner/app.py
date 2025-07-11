@@ -67,7 +67,7 @@ st.markdown("""
 #    st.stop()
 
 os.environ["OPENAI_API_KEY"] =  os.getenv("OPENAI_API_KEY") # <-- replace with real key
-litellm.api_key = ""
+litellm.api_key = os.environ["OPENAI_API_KEY"]
 
     
     
