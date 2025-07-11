@@ -28,6 +28,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ⬇️ Safely initialize required session state keys before anything else
+def initialize_session_state():
+    if "current_step" not in st.session_state:
+        st.session_state.current_step = "city_selection"
+    if "selected_cities" not in st.session_state:
+        st.session_state.selected_cities = None
+    if "travel_plan" not in st.session_state:
+        st.session_state.travel_plan = None
+
+
 # Import after page config
 from trip_planner.app import main
 

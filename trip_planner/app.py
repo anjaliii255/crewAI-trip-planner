@@ -67,7 +67,7 @@ st.markdown("""
 #    st.stop()
 
 os.environ["OPENAI_API_KEY"] =  os.getenv("OPENAI_API_KEY") # <-- replace with real key
-litellm.api_key = os.environ["OPENAI_API_KEY"]
+litellm.api_key = ""
 
     
     
@@ -93,6 +93,8 @@ def initialize_session_state():
         st.session_state.selected_cities = None
     if 'current_step' not in st.session_state:
         st.session_state.current_step = 'city_selection'
+    if 'show_proceed_button' not in st.session_state:
+        st.session_state.show_proceed_button = False
 
 def display_header():
     """Display the application header"""
@@ -105,10 +107,10 @@ def display_header():
 def display_weather_forecast(destination: str, date: str):
     """Display weather forecast for a destination"""
     with st.spinner("Getting weather forecast..."):
-        weather = WeatherForecastTool.get_weather_forecast(destination, date)
+        weather_tool = WeatherForecastTool()
+        weather = json.loads(weather_tool._run(destination, date))
         col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
         col1.metric("Temperature", f"{weather['temperature']}°C")
-        # Use markdown for condition to avoid truncation
         col2.markdown(f"<span style='font-size:1.5em'>{weather['condition']}</span>", unsafe_allow_html=True)
         col3.metric("Humidity", f"{weather['humidity']}%")
         col4.metric("Wind Speed", f"{weather['wind_speed']} km/h")
@@ -117,7 +119,8 @@ def display_weather_forecast(destination: str, date: str):
 def display_safety_info(destination: str):
     """Display safety information for a destination"""
     with st.spinner("Getting safety information..."):
-        safety_info = json.loads(SafetyInfoTool.get_safety_information(destination))
+        safety_tool = SafetyInfoTool()
+        safety_info = json.loads(safety_tool._run(destination))
         st.subheader("Safety Information")
         st.info(f"General Safety: {safety_info['general_safety']}")
         st.info(f"Health Concerns: {safety_info['health_concerns']}")
@@ -125,15 +128,16 @@ def display_safety_info(destination: str):
         st.info(f"Natural Disasters: {safety_info['natural_disasters']}")
     st.markdown("<br>", unsafe_allow_html=True)
 
-def display_local_events(destination: str, date_range: dict):
+def display_local_events(destination: str, date_range: dict = None):
     """Display local events for a destination"""
     with st.spinner("Getting local events..."):
-        events = LocalEventsTool.get_local_events(destination, date_range)
+        events_tool = LocalEventsTool()
+        events = json.loads(events_tool._run(destination, date_range))
         st.subheader("Local Events")
         for event in events:
-            with st.expander(f"🎉 {event['name']} - {event['date']}"):
-                st.markdown(f"**Location:** {event['location']}")
-                st.markdown(f"**Description:** {event['description']}")
+            with st.expander(f"🎉 {event.get('name', 'Event')} - {event.get('date', '')}"):
+                st.markdown(f"**Location:** {event.get('location', event.get('venue', ''))}")
+                st.markdown(f"**Description:** {event.get('description', '')}")
 
 def display_budget_analysis(budget_breakdown: dict):
     """Display budget analysis with visualizations"""
@@ -193,12 +197,14 @@ def display_city_recommendations(cities):
             st.markdown(f"**Estimated Daily Cost:** ${city['estimated_cost']['total_per_day']}")
             st.markdown(f"**Highlights:** {' | '.join(city['highlights'])}")
             # Weather summary
-            weather = WeatherForecastTool.get_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
+            weather_tool = WeatherForecastTool()
+            weather = json.loads(weather_tool._run(city['name'], datetime.now().strftime("%Y-%m-%d")))
             st.markdown(f"**Weather:** {weather['temperature']}°C, {weather['condition']}")
             # Events summary
-            events = LocalEventsTool.get_local_events(city['name'])
+            events_tool = LocalEventsTool()
+            events = json.loads(events_tool._run(city['name'], None))
             if events:
-                st.markdown(f"**Events:** {events[0]['name']} ({events[0]['date'][:10]})")
+                st.markdown(f"**Events:** {events[0].get('name', 'Event')} ({events[0].get('date', '')[:10]})")
             # Safety summary
             st.markdown("[Travel Advisory](https://www.travel-advisory.info/) for safety info.")
             st.markdown("---")
@@ -213,8 +219,9 @@ def display_city_recommendations(cities):
             display_weather_forecast(city['name'], datetime.now().strftime("%Y-%m-%d"))
             display_safety_info(city['name'])
             st.markdown("**Events:**")
-            for event in LocalEventsTool.get_local_events(city['name']):
-                st.markdown(f"- {event['name']} ({event['date'][:10]})")
+            events_tool = LocalEventsTool()
+            for event in json.loads(events_tool._run(city['name'], None)):
+                st.markdown(f"- {event.get('name', 'Event')} ({event.get('date', '')[:10]})")
             st.markdown("**Estimated Daily Costs:**")
             costs = city['estimated_cost']
             st.metric("Accommodation", f"${costs['accommodation']}")
@@ -430,22 +437,47 @@ def city_selection_form():
                         st.error(f"Agent execution error: {e}")
                         import traceback
                         traceback.print_exc()
-                
+                        return
                 # Debug logging
-                if result:
-                    st.write("Raw result:", result)
-                else:
-                    st.warning("No result received from the agent.")
+                #if result:
+                #    st.write("Raw result:", result)
+                #else:
+                #    st.warning("No result received from the agent.")
                 
                 # Validate output using guardrails
-                try:
+                #try:
                     # Try to parse the result as JSON
-                    if isinstance(result, str):
-                        result_data = json.loads(result)
+                    #if isinstance(result, str):
+                    #    result_data = json.loads(result)
+                    #else:
+                    #    result_data = result
+                    #if isinstance(result, dict) and "raw" in result:
+                    #    try:
+                    #        result_data = json.loads(result["raw"])
+                    #    except Exception as e:
+                    #        st.error("Could not parse the 'raw' field as JSON.")
+                    #        st.write("Raw value:", result["raw"])
+                    #        return
+                    #else:
+                    #    result_data = result
+                    #st.write("Parsed result data:", result_data)
+                    # Parse the result - FIX THE MAIN ISSUE HERE
+                try:
+                    # The result from CrewAI is typically a CrewOutput object
+                    # Extract the raw text from the result
+                    if hasattr(result, 'raw'):
+                        raw_text = result.raw
+                    elif isinstance(result, str):
+                        raw_text = result
                     else:
-                        result_data = result
+                        raw_text = str(result)
                     
-                    st.write("Parsed result data:", result_data)
+                    st.write("DEBUG - Raw result:", raw_text)
+                    
+                    # Parse the JSON from the raw text
+                    result_data = json.loads(raw_text)
+                    st.write("DEBUG - Parsed result data:", result_data)
+                    
                     
                     # Validate the structure
                     if not isinstance(result_data, dict):
@@ -485,14 +517,12 @@ def city_selection_form():
                     
                     # Store in session state
                     st.session_state.selected_cities = result_data
-                    st.write("Session state after update:", st.session_state.selected_cities)
-                    
-                    # Display recommendations
-                    try:
-                        display_city_recommendations(result_data['recommended_cities'])
-                    except Exception as e:
-                        st.error(f"Error displaying recommendations: {str(e)}")
-                        st.write("Debug - Cities data:", result_data['recommended_cities'])
+                    st.session_state.current_step = 'travel_planning'
+                    display_city_recommendations(result_data['recommended_cities'])
+                    # Show success message and set flag for proceed button
+                    st.success("✅ City recommendations generated successfully!")
+                    st.session_state.show_proceed_button = True
+                    return
                 
                 except json.JSONDecodeError as e:
                     st.error("Invalid JSON response from the AI. Please try again.")
@@ -516,10 +546,18 @@ def city_selection_form():
                         ]
                     }
                     st.session_state.selected_cities = fallback_response
-                    display_city_recommendations(fallback_response['recommended_cities'])
+                    #display_city_recommendations(fallback_response['recommended_cities'])
+                    st.session_state.trigger_next_step = True
                 except Exception as e:
                     st.error(f"Unexpected error: {str(e)}")
                     st.write("Debug - Full error:", e)
+
+    # OUTSIDE the form, show the proceed button if flag is set
+    if st.session_state.get("show_proceed_button"):
+        if st.button("Proceed to Travel Planning"):
+            st.session_state.current_step = 'travel_planning'
+            st.session_state.show_proceed_button = False
+            st.rerun()
 
 def travel_planning_form():
     """Display the travel planning form and handle travel plan generation"""
@@ -669,10 +707,22 @@ def travel_planning_form():
                         st.error(f"Agent execution error: {e}")
                         import traceback
                         traceback.print_exc()
+                        return
                 
-                # Validate output using guardrails
+                # Parse the result
                 try:
-                    result_data = json.loads(result)
+                    # Extract raw text from the result
+                    if hasattr(result, 'raw'):
+                        raw_text = result.raw
+                    elif isinstance(result, str):
+                        raw_text = result
+                    else:
+                        raw_text = str(result)
+                    
+                    result_data = json.loads(raw_text)
+                # Validate output using guardrails
+                #try:
+                    #result_data = json.loads(result)
                     is_valid, error_message = guardrails.validate_output(result_data, "travel_plan")
                     if not is_valid:
                         st.error(error_message)
@@ -690,26 +740,36 @@ def travel_planning_form():
                     st.error("Invalid response format from the AI. Please try again.")
 
 def main():
+
     """Main function to run the Streamlit app"""
     initialize_session_state()
     display_header()
     
     # Sidebar navigation
     st.sidebar.title("Navigation")
+    st.sidebar.markdown(f"**Current Step →** `{st.session_state.current_step}`")   #new
     if st.sidebar.button("Start Over"):
         st.session_state.current_step = 'city_selection'
         st.session_state.travel_plan = None
         st.session_state.selected_cities = None
         st.rerun()
     
-    # Main content
+    # Main content based on current step
     if st.session_state.current_step == 'city_selection':
         city_selection_form()
     elif st.session_state.current_step == 'travel_planning':
-        travel_planning_form()
-        if st.session_state.travel_plan:
-            st.success("Your travel plan is ready! 🎉")
-            st.balloons()
+        if st.session_state.selected_cities is None:
+            st.error("No cities selected. Please go back to city selection.")
+            if st.button("Back to City Selection"):
+                st.session_state.current_step = 'city_selection'
+                st.rerun()
+        else:
+            travel_planning_form()
+    
+    # Show success message when travel plan is ready
+    if st.session_state.travel_plan:
+        st.success("Your travel plan is ready! 🎉")
+        st.balloons()
 
 if __name__ == "__main__":
     main() 
