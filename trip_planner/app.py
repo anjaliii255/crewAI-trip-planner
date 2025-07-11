@@ -16,6 +16,8 @@ from crewai import Task, Crew
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 import openai
+import re
+from opentelemetry.context import get_current
 
 st.success("Telemetry initialized successfully!")
 tracer = trace.get_tracer(__name__)
@@ -106,38 +108,62 @@ def display_header():
 
 def display_weather_forecast(destination: str, date: str):
     """Display weather forecast for a destination"""
-    with st.spinner("Getting weather forecast..."):
-        weather_tool = WeatherForecastTool()
-        weather = json.loads(weather_tool._run(destination, date))
-        col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
-        col1.metric("Temperature", f"{weather['temperature']}°C")
-        col2.markdown(f"<span style='font-size:1.5em'>{weather['condition']}</span>", unsafe_allow_html=True)
-        col3.metric("Humidity", f"{weather['humidity']}%")
-        col4.metric("Wind Speed", f"{weather['wind_speed']} km/h")
-    st.markdown("<br>", unsafe_allow_html=True)
+    with tracer.start_as_current_span("weather_forecast_task", get_current()) as span:
+        span.set_attribute("destination", destination)
+        span.set_attribute("date", date)
+        try:
+            with st.spinner("Getting weather forecast..."):
+                weather_tool = WeatherForecastTool()
+                weather = json.loads(weather_tool._run(destination, date))
+                col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
+                col1.metric("Temperature", f"{weather['temperature']}°C")
+                col2.markdown(f"<span style='font-size:1.5em'>{weather['condition']}</span>", unsafe_allow_html=True)
+                col3.metric("Humidity", f"{weather['humidity']}%")
+                col4.metric("Wind Speed", f"{weather['wind_speed']} km/h")
+            st.markdown("<br>", unsafe_allow_html=True)
+            span.set_status(Status(StatusCode.OK))
+        except Exception as e:
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            st.error(f"Error getting weather: {e}")
 
 def display_safety_info(destination: str):
     """Display safety information for a destination"""
-    with st.spinner("Getting safety information..."):
-        safety_tool = SafetyInfoTool()
-        safety_info = json.loads(safety_tool._run(destination))
-        st.subheader("Safety Information")
-        st.info(f"General Safety: {safety_info['general_safety']}")
-        st.info(f"Health Concerns: {safety_info['health_concerns']}")
-        st.info(f"Crime Rate: {safety_info['crime_rate']}")
-        st.info(f"Natural Disasters: {safety_info['natural_disasters']}")
-    st.markdown("<br>", unsafe_allow_html=True)
+    with tracer.start_as_current_span("safety_info_task", get_current()) as span:
+        span.set_attribute("destination", destination)
+        try:
+            with st.spinner("Getting safety information..."):
+                safety_tool = SafetyInfoTool()
+                safety_info = json.loads(safety_tool._run(destination))
+                st.subheader("Safety Information")
+                st.info(f"General Safety: {safety_info['general_safety']}")
+                st.info(f"Health Concerns: {safety_info['health_concerns']}")
+                st.info(f"Crime Rate: {safety_info['crime_rate']}")
+                st.info(f"Natural Disasters: {safety_info['natural_disasters']}")
+            st.markdown("<br>", unsafe_allow_html=True)
+            span.set_status(Status(StatusCode.OK))
+        except Exception as e:
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            st.error(f"Error getting safety info: {e}")
 
 def display_local_events(destination: str, date_range: dict = None):
     """Display local events for a destination"""
-    with st.spinner("Getting local events..."):
-        events_tool = LocalEventsTool()
-        events = json.loads(events_tool._run(destination, date_range))
-        st.subheader("Local Events")
-        for event in events:
-            with st.expander(f"🎉 {event.get('name', 'Event')} - {event.get('date', '')}"):
-                st.markdown(f"**Location:** {event.get('location', event.get('venue', ''))}")
-                st.markdown(f"**Description:** {event.get('description', '')}")
+    with tracer.start_as_current_span("local_events_task", get_current()) as span:
+        span.set_attribute("destination", destination)
+        if date_range:
+            span.set_attribute("date_range", str(date_range))
+        try:
+            with st.spinner("Getting local events..."):
+                events_tool = LocalEventsTool()
+                events = json.loads(events_tool._run(destination, date_range))
+                st.subheader("Local Events")
+                for event in events:
+                    with st.expander(f"🎉 {event.get('name', 'Event')} - {event.get('date', '')}"):
+                        st.markdown(f"**Location:** {event.get('location', event.get('venue', ''))}")
+                        st.markdown(f"**Description:** {event.get('description', '')}")
+            span.set_status(Status(StatusCode.OK))
+        except Exception as e:
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            st.error(f"Error getting local events: {e}")
 
 def display_budget_analysis(budget_breakdown: dict):
     """Display budget analysis with visualizations"""
